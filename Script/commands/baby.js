@@ -1,18 +1,3 @@
-admin /*WEBSITE LINK - https://rx-baby.netlify.app/ 
-
-AUTHOR - rX ABDULLAH */
-  
-const axios = require("axios");
-
-let s = "";
-
-(async () => {
- try {
- const r = await axios.get("https://raw.githubusercontent.com/rummmmna21/rx-api/main/baseApiUrl.json");
- s = r.data?.baby || "";
- } catch {}
-})();
-
 module.exports.config = {
  name: "baby",
  version: "1.0.8",
