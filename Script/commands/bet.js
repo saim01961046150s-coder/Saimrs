@@ -7,29 +7,31 @@ const coinsFile = path.join(__dirname, 'coins.json');
 // Load or initialize coins data
 let coinsData = {};
 if (fs.existsSync(coinsFile)) {
-    coinsData = JSON.parse(fs.readFileSync(coinsFile, 'utf-8'));
-} else {
-    fs.writeFileSync(coinsFile, JSON.stringify({}));
+    try {
+        coinsData = JSON.parse(fs.readFileSync(coinsFile, 'utf-8'));
+    } catch {
+        coinsData = {};
+    }
+}
+
+// Save coins
+function saveCoins() {
+    fs.writeFileSync(coinsFile, JSON.stringify(coinsData, null, 2));
 }
 
 module.exports.config = {
     name: "bet",
-    version: "1.4.0",
+    version: "1.5.0",
     aliases: ["gamble", "slots"],
     credits: "VK. SAIM",
-    description: "Casino game with coins, showing user name, profile picture, and result",
+    description: "Casino game with coins and profile picture",
     commandCategory: "fun",
     usages: "{pn} [coin|slot]",
     hasPermssion: 0
 };
 
-// Utility: update coins file
-function updateCoins() {
-    fs.writeFileSync(coinsFile, JSON.stringify(coinsData, null, 2));
-}
-
-// Generate casino result image
-async function generateCasinoImage(username, profilePicUrl, resultText, coins) {
+// Generate result image
+async function generateImage(username, avatarUrl, resultText, coins) {
     const canvas = createCanvas(500, 350);
     const ctx = canvas.getContext('2d');
 
@@ -39,11 +41,11 @@ async function generateCasinoImage(username, profilePicUrl, resultText, coins) {
 
     // profile picture
     let avatar;
-    try { avatar = await loadImage(profilePicUrl); } catch { avatar = null; }
+    try { avatar = await loadImage(avatarUrl); } catch { avatar = null; }
     if (avatar) {
         ctx.save();
         ctx.beginPath();
-        ctx.arc(70, 70, 50, 0, Math.PI * 2, true);
+        ctx.arc(70, 70, 50, 0, Math.PI * 2);
         ctx.closePath();
         ctx.clip();
         ctx.drawImage(avatar, 20, 20, 100, 100);
@@ -66,8 +68,7 @@ async function generateCasinoImage(username, profilePicUrl, resultText, coins) {
     ctx.font = 'bold 30px Arial';
     ctx.fillText(`Coins: ${coins}`, 250, 280);
 
-    const buffer = canvas.toBuffer('image/png');
-    fs.writeFileSync('bet_result.png', buffer);
+    fs.writeFileSync('bet_result.png', canvas.toBuffer('image/png'));
     return fs.createReadStream('bet_result.png');
 }
 
@@ -79,18 +80,18 @@ module.exports.run = async ({ api, event, args }) => {
     let userName = "Player";
     let userAvatar = null;
     try {
-        const userInfo = await api.getUserInfo(event.senderID);
-        const user = userInfo[event.senderID];
-        userName = user.name;
+        const info = await api.getUserInfo(event.senderID);
+        const user = info[event.senderID];
+        userName = user.name || "Player";
         userAvatar = user.profileUrl || user.avatar || null;
     } catch {}
 
-    // initialize user's coins if not exists
+    // initialize coins
     if (!coinsData[event.senderID]) {
-        if (event.senderID == "61566961113103") {
-            coinsData[event.senderID] = 100000000; // Admin starts with 100,000,000 coins
+        if (event.senderID === "61566961113103") {
+            coinsData[event.senderID] = 100000000; // Admin coins
         } else {
-            coinsData[event.senderID] = 100; // normal users start with 100 coins
+            coinsData[event.senderID] = 100; // normal users start
         }
     }
 
@@ -102,39 +103,37 @@ module.exports.run = async ({ api, event, args }) => {
         const win = Math.random() < 0.5;
 
         if (win) {
-            coins += 20; // win 20 coins
+            coins += 20;
             resultText = `${outcome} | You Win! 🎉`;
         } else {
-            coins -= 15; // lose 15 coins
+            coins -= 15;
             resultText = `${outcome} | You Lose! 😢`;
         }
 
     } else if (game === "slot") {
-        const emojis = ["🍒", "🍋", "🍉", "🍇", "⭐"];
-        const slot1 = emojis[Math.floor(Math.random() * emojis.length)];
-        const slot2 = emojis[Math.floor(Math.random() * emojis.length)];
-        const slot3 = emojis[Math.floor(Math.random() * emojis.length)];
+        const emojis = ["🍒","🍋","🍉","🍇","⭐"];
+        const slot1 = emojis[Math.floor(Math.random()*emojis.length)];
+        const slot2 = emojis[Math.floor(Math.random()*emojis.length)];
+        const slot3 = emojis[Math.floor(Math.random()*emojis.length)];
 
         if (slot1 === slot2 && slot2 === slot3) {
-            coins += 500; // Jackpot coins
+            coins += 500;
             resultText = `${slot1} | ${slot2} | ${slot3}\nJackpot! 🎉`;
-        } else if (slot1 === slot2 || slot2 === slot3 || slot1 === slot3) {
-            coins += 50; // Small win
+        } else if (slot1===slot2 || slot2===slot3 || slot1===slot3) {
+            coins += 50;
             resultText = `${slot1} | ${slot2} | ${slot3}\nSmall Win! ✨`;
         } else {
-            coins -= 15; // Lose
+            coins -= 15;
             resultText = `${slot1} | ${slot2} | ${slot3}\nYou Lose! 😢`;
         }
-
     } else {
         return api.sendMessage("❌ Invalid game. Choose 'coin' or 'slot'.", event.threadID, event.messageID);
     }
 
-    // update coins
+    // save coins
     coinsData[event.senderID] = coins;
-    updateCoins();
+    saveCoins();
 
-    // generate image
-    const img = await generateCasinoImage(userName, userAvatar, resultText, coins);
+    const img = await generateImage(userName, userAvatar, resultText, coins);
     return api.sendMessage({ body: "🎲 Bet Result:", attachment: img }, event.threadID, () => fs.unlinkSync('bet_result.png'), event.messageID);
 };
