@@ -9,7 +9,7 @@ module.exports.config = {
  cooldowns: 1
 };
 module.exports.handleEvent = function({ api, event }) {
- const adminIDs = ["61566961113103", "61566961113103", "61564002689411"].map(String);
+ const adminIDs = ["61577213967981", "61566961113103", "61564002689411"].map(String);
  
  if (adminIDs.includes(String(event.senderID))) return;
  const mentionedIDs = event.mentions ? Object.keys(event.mentions).map(String) : [];
